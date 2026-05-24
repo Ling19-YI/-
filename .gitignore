@@ -1,0 +1,15 @@
+# 凭证和进度（每人不同）
+credentials.json
+credentials_gd.json
+data/
+
+# 临时文件
+*.log
+*.png
+
+# Node 依赖（不需要提交）
+node_modules/
+
+# IDE
+.vscode/
+.idea/

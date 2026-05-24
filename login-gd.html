@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>杭州干部学习 - 登录</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f3443 0%, #1a5f7a 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px;
+      width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-box h1 {
+      font-size: 20px;
+      color: #1a5f7a;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .login-box p {
+      font-size: 13px;
+      color: #888;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: #444;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .form-group input {
+      width: 100%;
+      height: 44px;
+      border: 1.5px solid #dde6ee;
+      border-radius: 10px;
+      padding: 0 14px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: #1a5f7a; }
+    .btn-login {
+      width: 100%;
+      height: 46px;
+      background: linear-gradient(135deg, #1a5f7a, #0f3443);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: opacity 0.2s;
+    }
+    .btn-login:hover { opacity: 0.9; }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error-msg {
+      color: #e74c3c;
+      font-size: 13px;
+      margin-top: 8px;
+      text-align: center;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>🏛️ 杭州干部学习平台</h1>
+    <p>请输入您的账号和密码</p>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label>账号</label>
+        <input type="text" id="username" placeholder="请输入账号" required>
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="password" placeholder="请输入密码" required>
+      </div>
+      <button type="submit" class="btn-login" id="submitBtn">登录并开始刷课</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </form>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'gd_credentials';
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const cred = JSON.parse(saved);
+        if (cred.username) document.getElementById('username').value = cred.username;
+      } catch(e) {}
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const errorMsg = document.getElementById('errorMsg');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (!username || !password) {
+        errorMsg.textContent = '请填写账号和密码';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = '保存中...';
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ username, password }));
+
+      if (window.opener) {
+        window.opener.postMessage({ type: 'credentials_ready', username, password }, '*');
+      }
+
+      submitBtn.textContent = '✓ 即将开始...';
+      setTimeout(() => window.close(), 1500);
+    });
+  </script>
+</body>
+</html>

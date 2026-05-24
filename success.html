@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录成功</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      width: 320px;
+    }
+    .check { font-size: 60px; }
+    h2 { color: #2ecc71; margin: 16px 0 8px; }
+    p { color: #666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="check">✅</div>
+    <h2>登录成功</h2>
+    <p>账号已保存，窗口即将关闭...</p>
+    <script>
+      setTimeout(() => window.close(), 2000);
+    </script>
+  </div>
+</body>
+</html>

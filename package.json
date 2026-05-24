@@ -1,0 +1,14 @@
+{
+  "name": "mooc-helper",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "explore": "npx tsx explore.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.3"
+  }
+}

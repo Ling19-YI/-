@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>超星学习通 - 登录</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px;
+      width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-box h1 {
+      font-size: 22px;
+      color: #1a1a2e;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .login-box p {
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: #444;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .form-group input {
+      width: 100%;
+      height: 44px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 0 14px;
+      font-size: 15px;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .form-group input:focus {
+      border-color: #4a90e2;
+    }
+    .btn-login {
+      width: 100%;
+      height: 46px;
+      background: linear-gradient(135deg, #4a90e2, #357abd);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: opacity 0.2s;
+    }
+    .btn-login:hover { opacity: 0.9; }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error-msg {
+      color: #e74c3c;
+      font-size: 13px;
+      margin-top: 10px;
+      text-align: center;
+      min-height: 18px;
+    }
+    .info {
+      margin-top: 20px;
+      padding: 12px;
+      background: #f5f7ff;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #666;
+    }
+    .info strong { color: #333; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>🎓 超星学习通</h1>
+    <p>请输入您的账号和密码</p>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label>手机号 / 超星号</label>
+        <input type="text" id="username" placeholder="请输入手机号" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="password" placeholder="请输入密码" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn-login" id="submitBtn">登录</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </form>
+
+    <div class="info">
+      <strong>💡 说明</strong><br>
+      账号密码仅保存在本地文件中，用于自动登录刷课。
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'mooc_credentials';
+
+    // 读取已有账号
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const cred = JSON.parse(saved);
+        if (cred.username) document.getElementById('username').value = cred.username;
+      } catch(e) {}
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const errorMsg = document.getElementById('errorMsg');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (!username || !password) {
+        errorMsg.textContent = '请填写账号和密码';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = '保存中...';
+      errorMsg.textContent = '';
+
+      // 保存到 localStorage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ username, password }));
+
+      // 显示成功
+      document.getElementById('loginForm').style.display = 'none';
+      document.querySelector('.login-box h1').textContent = '✅ 登录成功';
+      document.querySelector('.login-box p').textContent = '账号已保存，窗口即将关闭...';
+      document.querySelector('.info').style.display = 'none';
+
+      // 等待关闭
+      setTimeout(() => window.close(), 2000);
+    });
+  </script>
+</body>
+</html>
