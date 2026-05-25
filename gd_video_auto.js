@@ -86,7 +86,7 @@ async function login(page) {
     await page.locator('button.ant-btn-primary').click({ force: true });
     await sleep(3000);
     const body = await page.locator('body').textContent();
-    if (body.includes('胡智杰')) {
+    if (body.includes('学习') || body.includes('video')) {
       console.log('[登录] 登录成功');
     } else {
       console.log('[登录] 登录可能失败，继续尝试...');
