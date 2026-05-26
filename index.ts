@@ -6,7 +6,7 @@
  * 2. 自动检测所有课程，交互式选择
  * 3. 每课程独立进度文件（data/{courseId}.json），中断后可继续
  * 4. 支持指定起始章节
- * 5. 遇到意外/答题弹窗 → 跳过
+ * 5. AI 答题：整页文本 → DeepSeek → Playwright 自动点击提交
  */
 
 import { chromium } from 'playwright';
@@ -28,6 +28,7 @@ const CONFIG = {
   DATA_DIR: path.join(__dirname2, 'data'),
   CREDENTIALS_FILE: path.join(__dirname2, 'credentials.json'),
   LOGIN_HTML: path.join(__dirname2, 'login-ui.html'),
+  DEEPSEEK_API_KEY: '',
 };
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -256,6 +257,70 @@ async function goBackToCourse(page: Page) {
   if (tab) { await tab.click({ force: true }); await sleep(2000); }
 }
 
+// ===== 答题模块：全量文本 → DeepSeek AI → Playwright 点击 =====
+
+function getQuizFrame(page: Page) {
+  return page.frameLocator('#iframe').frameLocator('iframe').frameLocator('iframe[name="frame_content"], iframe');
+}
+
+async function getQuizPageText(page: Page): Promise<string> {
+  return (await getQuizFrame(page).locator('body').textContent({ timeout: 5000 })) || '';
+}
+
+async function askDeepSeekForPage(apiKey: string, pageText: string): Promise<any[]> {
+  const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: '你是答题助手。分析测验网页文本，选出每题正确答案。返回JSON: [{"question":1,"answer":"A","note":"解释"}]。answer: 单选="A",多选="AB",判断="对"/"错",填空写文字。不确定填"?"。只输出JSON。' },
+        { role: 'user', content: `回答以下测验:\n\n${pageText}` },
+      ],
+      temperature: 0.1, max_tokens: 2000,
+    }),
+  });
+  if (!resp.ok) throw new Error(`DeepSeek API ${resp.status}`);
+  const raw = (await resp.json() as any).choices?.[0]?.message?.content || '';
+  const m = raw.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error('AI 格式错误: ' + raw.substring(0, 100));
+  return JSON.parse(m[0]);
+}
+
+async function clickAnswersByLabel(page: Page, answers: any[]) {
+  const quiz = getQuizFrame(page); let clicked = 0;
+  for (const item of answers) {
+    const ans = (item.answer || '').trim().toUpperCase();
+    if (!ans || ans === '?' || ans === '？') { console.log(`      Q${item.question}: 跳过`); continue; }
+    for (const ch of ans.replace(/[^A-H]/g, '').split('')) {
+      let ok = false;
+      try { const opt = quiz.locator(`[aria-label*="${ch} " i], [aria-label^="${ch}"]`).first(); if (await opt.count() > 0) { await opt.click({ force: true, timeout: 2000 }); ok = true; } } catch {}
+      if (!ok) try { const radios = quiz.locator('input[type="radio"], [role="radio"]'); const idx = (item.question - 1) * 4 + 'ABCDEFGH'.indexOf(ch); if (idx >= 0 && idx < await radios.count()) { await radios.nth(idx).click({ force: true, timeout: 2000 }); ok = true; } } catch {}
+      if (ok) { clicked++; console.log(`      Q${item.question} ${ch} ✓`); }
+    }
+  }
+  return clicked;
+}
+
+async function isQuizPage(page: Page): Promise<boolean> {
+  try { const t = await getQuizPageText(page); return (t.includes('章节测验') || t.includes('待完成')) && (t.includes('单选题') || t.includes('多选题') || t.includes('判断题')); } catch { return false; }
+}
+
+async function submitQuiz(page: Page): Promise<boolean> {
+  try { await getQuizFrame(page).locator('button:has-text("提交"), a:has-text("提交")').first().click({ timeout: 3000 }); await sleep(2000); const c = page.locator('.layui-layer-btn0, button:has-text("确定")'); if (await c.count() > 0) { await c.first().click({ timeout: 2000 }); await sleep(2000); } console.log('    ✓ 已提交'); return true; } catch { console.log('    ⚠ 提交失败'); return false; }
+}
+
+async function handleQuiz(page: Page): Promise<{ answered: number; success: boolean }> {
+  console.log('    → 检测到答题页面');
+  if (!CONFIG.DEEPSEEK_API_KEY) { console.log('    ⚠ 未配置 API Key，跳过'); return { answered: 0, success: false }; }
+  const text = await getQuizPageText(page); console.log(`    → 页面 ${text.length} 字符`);
+  let answers: any[]; try { answers = await askDeepSeekForPage(CONFIG.DEEPSEEK_API_KEY, text); } catch (e: any) { console.log(`    ✗ AI: ${e.message}`); return { answered: 0, success: false }; }
+  if (!answers?.length) { console.log('    ⚠ AI 无返回'); return { answered: 0, success: false }; }
+  console.log(`    → AI 给出 ${answers.length} 题答案`);
+  const clicked = await clickAnswersByLabel(page, answers);
+  return { answered: clicked, success: await submitQuiz(page) };
+}
+
 // ===== 主流程 =====
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════╗');
@@ -271,6 +336,18 @@ async function main() {
   if (!creds) creds = await loginWithUI();
   else console.log(`\n[0/4] 使用已保存账号: ${creds.username}`);
   CONFIG.USERNAME = creds.username; CONFIG.PASSWORD = creds.password;
+
+  // DeepSeek API Key
+  if (!CONFIG.DEEPSEEK_API_KEY) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    console.log('\n╔════════════════════════════════════════════════════════════╗');
+    console.log('║  DeepSeek API Key（留空跳过 AI 答题）                    ║');
+    console.log('║  获取: https://platform.deepseek.com/api_keys              ║');
+    console.log('╚════════════════════════════════════════════════════════════╝');
+    CONFIG.DEEPSEEK_API_KEY = await new Promise<string>(r => { rl.question('   Key: ', v => { rl.close(); r(v.trim()); }); });
+    if (CONFIG.DEEPSEEK_API_KEY) console.log('    ✓ DeepSeek 已配置\n');
+    else console.log('    - 跳过 AI 答题\n');
+  }
 
   if (!await login(page)) { await browser.close(); return; }
 
@@ -317,6 +394,20 @@ async function main() {
     const name = chapter.name.replace(/\n/g, ' ').trim();
     console.log(`\n[${idx}/${toDo.length}] ${name.substring(0, 50)}`);
     await clickChapter(page, chapter);
+
+    // 先检测答题页面
+    const isQuiz = await isQuizPage(page);
+    if (isQuiz) {
+      const qr = await handleQuiz(page);
+      if (qr.success) {
+        if (!progress) progress = { courseId: selected.courseId, courseName: selected.name, completedChapters: [], lastChapter: chapter.onclick, updatedAt: Date.now() };
+        markChapterDone(progress, chapter.onclick); completed++;
+        console.log(`    ✓ 答题完成 (${qr.answered} 题)`);
+      } else { console.log(`    ⚠ 答题未完成，跳过`); skipped++; }
+      await goBackToCourse(page);
+      continue;
+    }
+
     const hasVideo = await waitForVideo(page);
     let result: VideoResult;
     if (hasVideo) result = await waitForVideoEnd(page);
