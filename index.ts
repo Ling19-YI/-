@@ -292,10 +292,19 @@ async function clickAnswersByLabel(page: Page, answers: any[]) {
   for (const item of answers) {
     const ans = (item.answer || '').trim().toUpperCase();
     if (!ans || ans === '?' || ans === '？') { console.log(`      Q${item.question}: 跳过`); continue; }
+    const qIdx = item.question - 1;
     for (const ch of ans.replace(/[^A-H]/g, '').split('')) {
       let ok = false;
-      try { const opt = quiz.locator(`[aria-label*="${ch} " i], [aria-label^="${ch}"]`).first(); if (await opt.count() > 0) { await opt.click({ force: true, timeout: 2000 }); ok = true; } } catch {}
-      if (!ok) try { const radios = quiz.locator('input[type="radio"], [role="radio"]'); const idx = (item.question - 1) * 4 + 'ABCDEFGH'.indexOf(ch); if (idx >= 0 && idx < await radios.count()) { await radios.nth(idx).click({ force: true, timeout: 2000 }); ok = true; } } catch {}
+      // 方法1: aria-label nth
+      try { const o = quiz.locator(`[aria-label*="${ch} "], [aria-label^="${ch}"]`); if (await o.count() > qIdx) { await o.nth(qIdx).click({ force: true, timeout: 2000 }); ok = true; } } catch {}
+      // 方法2: radio 列表容器
+      if (!ok) try { const ls = quiz.locator('ul, ol, [role="list"]').filter({ has: quiz.locator('[role="radio"]') }); if (qIdx < await ls.count()) { const r = ls.nth(qIdx).locator('[role="radio"]'); const li = 'ABCDEFGH'.indexOf(ch); if (li >= 0 && li < await r.count()) { await r.nth(li).click({ force: true, timeout: 2000 }); ok = true; } } } catch {}
+      // 方法3: 全局 radio 索引
+      if (!ok) try { const ar = quiz.locator('[role="radio"], input[type="radio"]'); const idx = qIdx * 4 + 'ABCDEFGH'.indexOf(ch); if (idx >= 0 && idx < await ar.count()) { await ar.nth(idx).click({ force: true, timeout: 2000 }); ok = true; } } catch {}
+      // 方法4: 纯文本匹配 (字母 + 空格)
+      if (!ok) try { const tx = quiz.getByText(new RegExp(`^${ch}\\s`)); if (await tx.count() > qIdx) { await tx.nth(qIdx).click({ force: true, timeout: 2000 }); ok = true; } } catch {}
+      // 方法5: option 角色 (阅读理解)
+      if (!ok) try { const op = quiz.getByRole('option'); const oi = 15 + (qIdx - 15) * 4 + 'ABCDEFGH'.indexOf(ch); if (oi >= 15 && oi < await op.count()) { await op.nth(oi).click({ force: true, timeout: 2000 }); ok = true; } } catch {}
       if (ok) { clicked++; console.log(`      Q${item.question} ${ch} ✓`); }
     }
   }
